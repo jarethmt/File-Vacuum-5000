@@ -12,6 +12,7 @@
     "chownr": "^2.0.0",
     "drivelist": "^9.2.4",
     "nodemailer": "^6.7.2",
+    "octal": "^1.0.0",
     "rsync": "^0.6.1",
     "underscore": "^1.13.2"
   }

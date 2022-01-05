@@ -8,6 +8,7 @@ var drivelist = require("drivelist");
 const nodemailer = require("nodemailer");
 var chmodr = require('chmodr');
 var chownr = require('chownr');
+var octal = require('octal');
 var _ = require('underscore');
 
 var exec = require('child_process').exec;
@@ -278,7 +279,7 @@ function correctPermissions(path, owner, group, permissions){
                 reject(err);
                 return;
             }
-            chmodr(path, "0o"+permissions, function(err){
+            chmodr(path, octal(permissions), function(err){
                 if(err){
                     logError('error changing permissions: ' + err);
                     reject(err);
