@@ -166,10 +166,18 @@ function postMount(mountPoint, drive){
                 //Now we have our data, set up the sync
                 var rsync = new Rsync()
                     .flags('avz')
+		    .set('progress')
                     .source(trailingSlashIt(mountPoint))
                     .destination(trailingSlashIt(syncPath))
                     .exclude('sync.json');
 
+		rsync.output(
+			function(data){
+				console.log(data.toString());
+			}, function(error){
+				console.log(error.toString());
+			}
+		);
                 rsync.execute(async function(error, code, cmd) {
                     if(error){
                         logError('error syncing: ' + error, mailTo);
