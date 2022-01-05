@@ -1,0 +1,8 @@
+{
+	"email": "your@emailaddress.com",
+	"syncPath": "/home/yourUser/usb-drive-import",
+	"deleteAfter": false,
+	"owner": 1000,
+	"group": 1000,
+	"permissions": 755
+}
