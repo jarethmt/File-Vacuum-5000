@@ -65,7 +65,7 @@ function mountDrive(drive) {
     console.log('starting sync for ' + devPath);
 
     //First, find all partitions on the disk
-    exec("sudo fdisk -l "+devPath+" | grep -P '"+escapedPath+"\\d' | awk '{print $1}'", function(err, stdout, stderr) {
+    exec("fdisk -l "+devPath+" | grep -P '"+escapedPath+"\\d' | awk '{print $1}'", function(err, stdout, stderr) {
         if (err) {
             logError('error listing disks: ' + err);
             return;
@@ -95,7 +95,7 @@ function mountDrive(drive) {
                     logError(err)
                 }
 
-                exec('sudo mount '+partitions[i]+' '+folderName, function(err, stdout, stderr){
+                exec('mount '+partitions[i]+' '+folderName, function(err, stdout, stderr){
                     if (err) {
                         logError('error mounting drive: ' + err);
 
