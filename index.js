@@ -22,6 +22,8 @@ var mailServer = mailSettings.server
 var currentDrives = false;
 
 
+var emailUpdateInterval = false;
+
 //Check to see if we ran this with sudo, and fail out if not
 checkSudo().then(function(isSudo){
     if(!isSudo){
@@ -56,7 +58,7 @@ async function logError(error, mailTo){
 
 }
 
-function startMount(drive) {
+function mountDrive(drive) {
 
     var devPath = drive.device;
     var escapedPath = devPath.replace(/\//g, '\\/');
@@ -79,7 +81,7 @@ function startMount(drive) {
         if(drive.mountpoints.length > 0){
             var mountPoint = drive.mountpoints[0].path;
             console.log('Drive already mounted at: ' + mountPoint);
-            postMount(mountPoint, drive);
+            syncDrive(mountPoint, drive);
         } else {
             for(var i in partitions){
 
@@ -103,7 +105,7 @@ function startMount(drive) {
                         return;
                     }
 
-                    postMount(folderName, drive);
+                    syncDrive(folderName, drive);
                     
                 });
             }
@@ -116,7 +118,7 @@ function startMount(drive) {
 }
 
 
-function postMount(mountPoint, drive){
+function syncDrive(mountPoint, drive){
     //Drive is mounted, list the files in it
     fs.readdir(mountPoint, function(err, files) {
         if (err) {
@@ -155,7 +157,7 @@ function postMount(mountPoint, drive){
                     from: mailFrom,
                     to: mailTo,
                     subject: "File Sync Starting",
-                    text: "Your drive: "+drive.description+" is being synced to: "+syncPath,
+                    text: "Your drive ("+drive.description+") is being synced to: "+syncPath,
                   });
 
                 //Make sure our destination directory exists...
@@ -163,22 +165,36 @@ function postMount(mountPoint, drive){
                     fs.mkdirSync(syncPath);
                 }
 
+                //Set up an interval to email the user every half hour until we are done
+                if(!emailUpdateInterval){
+                    emailUpdateInterval = setInterval(function(){
+                        console.log('Sending email update to let user know the sync is still running...');
+                        transporter.sendMail({
+                            from: mailFrom,
+                            to: mailTo,
+                            subject: "File Sync Status",
+                            text: "Your drive ("+drive.description+") is still being actively synced to : "+syncPath+". Please be patient, this may take a while. If you do not receive an email for over 45 minutes and you have not received any errors or success notifications, please check on the sync manually.",
+                          });
+                    }, 1000 * 60 * 30);
+                }
+
                 //Now we have our data, set up the sync
                 var rsync = new Rsync()
                     .flags('avz')
-		    .set('progress')
+		            .set('progress')
                     .source(trailingSlashIt(mountPoint))
                     .destination(trailingSlashIt(syncPath))
                     .exclude('sync.json');
 
-		rsync.output(
-			function(data){
-				console.log(data.toString());
-			}, function(error){
-				console.log(error.toString());
-			}
-		);
+                rsync.output(
+                    function(data){
+                        process.stdout.write(data);
+                    }, function(error){
+                        process.stdout.write(error);
+                    }
+                );
                 rsync.execute(async function(error, code, cmd) {
+                    clearInterval(emailUpdateInterval);
                     if(error){
                         logError('error syncing: ' + error, mailTo);
                         unmountDrive(mountPoint, mailTo);
@@ -327,7 +343,7 @@ setInterval(async function(){
         var newDrive = _.filter(newDrives, function(obj){ return !_.findWhere(currentDrives, {devicePath: obj.devicePath}); })[0];
 
         // Now that we've found our drive path, let's trigger a sync
-        startMount(newDrive);
+        mountDrive(newDrive);
 
         currentDrives = newDrives;
     }
