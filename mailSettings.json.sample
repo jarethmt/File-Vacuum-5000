@@ -1,0 +1,13 @@
+{
+    "from":"SERVER NAME <server@yoururl.com>",
+    "defaultRecipient": "youremail@yoururl.com",
+    "server":{
+        "host": "your.smtp.server.com",
+        "port": 465,
+        "secure": true,
+        "auth": {
+            "user": "your_email",
+            "pass": "your_password"
+        }
+    }
+}
