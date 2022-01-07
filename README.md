@@ -71,3 +71,4 @@ Save this file, eject the drive, and then plug it back in, and you should see th
 
 ### TODO ###
  - Create a safety check on import folder. An array of folders defined in the script which can not be synced to, in order to protect sensitive system directories.
+ - Fix script to allow drives without any partitions to be properly mounted / synced. Right now, the drive MUST have a partition to work properly.
