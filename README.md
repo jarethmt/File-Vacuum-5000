@@ -64,11 +64,12 @@ After everything is installed and configured, test it out by grabbing a flash dr
         "permissions": xxx,
         "scripts": {
             "beforeSync": "",
-            "afterSync": ""
+            "afterSync": "",
+            "syncError": ""
         }
     }
 
-Where uid is the user ID of the user you'd like the files to be owned by after sync is complete, same for gid. You can obtain these on Ubuntu with `id -u $USER` and `id -g $USER`. Permissions should be a [3 digit octal representation](https://docs.nersc.gov/filesystems/unix-file-permissions/). Also, the scripts block is an optional definition if you would like to run an extra bash command before or after the sync is complete. Useful for things like scanning files into Nextcloud or another DB driven media library after the rsync is complete.
+Where uid is the user ID of the user you'd like the files to be owned by after sync is complete, same for gid. You can obtain these on Ubuntu with `id -u $USER` and `id -g $USER`. Permissions should be a [3 digit octal representation](https://docs.nersc.gov/filesystems/unix-file-permissions/). Also, the scripts block is an optional definition if you would like to run an extra bash command before or after the sync is complete, or when an error is encountered. Useful for things like scanning files into Nextcloud or another DB driven media library after the rsync is complete.
 
 Save this file, eject the drive, and then plug it back in, and you should see the script automatically copy everything over to your specified path on the computer! You'll receive a success email on completion. Even if you specify "true" for "deleteAfter", the sync.json will be preserved and left on the drive so that the next time you plug it in, it will sync again! Very useful for creating a physical drop box of sorts.
 

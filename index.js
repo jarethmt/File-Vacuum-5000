@@ -41,7 +41,8 @@ checkSudo().then(function(isSudo){
 //First initialize our mail transport
 let transporter = nodemailer.createTransport(mailServer);
 
-async function logError(error, mailTo){
+async function logError(error, mailTo, additionalScript){
+
     console.log(error);
     //Then email the user
     if(!mailTo){
@@ -55,6 +56,20 @@ async function logError(error, mailTo){
       });
 
       console.log('Error email sent');
+
+      //Check to see if we have an additional error script defined and run if so
+        if(additionalScript){
+            console.log('Running additional error script...');
+            exec(additionalScript, function(err, stdout, stderr){
+                if(err){
+                    console.log('error running additional error script: ' + err, mailTo, additionalScript);
+                    return;
+                }
+                console.log('Additional error script completed successfully');
+            }).stdout.on('data', function(data) {
+                console.log(data); 
+            });
+        }
 
 }
 
@@ -143,7 +158,7 @@ function setupSync(mountPoint, drive){
                     console.log('Running pre-sync script...');
                     exec(syncData.scripts.beforeSync, function(err, stdout, stderr){
                         if(err){
-                            logError('error running pre-sync script: ' + err);
+                            logError('error running pre-sync script: ' + err, syncData.email, syncData.scripts.syncError);
                             unmountDrive(mountPoint);
                             return;
                         }
@@ -184,7 +199,7 @@ async function syncDrive(mountPoint, drive, syncData){
     var permissions = syncData.permissions;
 
     if(!mailTo || !syncPath || !owner || !group || !permissions){
-        logError('Invalid sync data, aborting!');
+        logError('Invalid sync data, aborting!', mailTo, syncData.scripts.syncError);
         unmountDrive(mountPoint);
         return;
     }
@@ -233,7 +248,7 @@ async function syncDrive(mountPoint, drive, syncData){
     rsync.execute(async function(error, code, cmd) {
         clearInterval(emailUpdateInterval);
         if(error){
-            logError('error syncing: ' + error, mailTo);
+            logError('error syncing: ' + error, mailTo, syncData.scripts.syncError);
             unmountDrive(mountPoint, mailTo);
             return;
         }
@@ -244,7 +259,7 @@ async function syncDrive(mountPoint, drive, syncData){
             console.log('Deleting files after sync');
             fs.readdir(mountPoint, function(err, files) {
                 if (err) {
-                    logError('error listing files: ' + err, mailTo);
+                    logError('error listing files: ' + err, mailTo, syncData.scripts.syncError);
                     unmountDrive(mountPoint);
                     return;
                 }
@@ -264,7 +279,7 @@ async function syncDrive(mountPoint, drive, syncData){
                         });
                     })
                     .catch(function(err){
-                        logError('error running post sync script: ' + err, mailTo);
+                        logError('error running post sync script: ' + err, mailTo, syncData.scripts.syncError);
                         unmountDrive(mountPoint, mailTo);  
                     });
                     
@@ -280,7 +295,7 @@ async function syncDrive(mountPoint, drive, syncData){
                     });
                 })
                 .catch(function(err){
-                    logError('error running post sync script: ' + err, mailTo);
+                    logError('error running post sync script: ' + err, mailTo, syncData.scripts.syncError);
                     unmountDrive(mountPoint, mailTo);  
                 });
                 
