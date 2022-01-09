@@ -81,7 +81,7 @@ function mountDrive(drive) {
         if(drive.mountpoints.length > 0){
             var mountPoint = drive.mountpoints[0].path;
             console.log('Drive already mounted at: ' + mountPoint);
-            syncDrive(mountPoint, drive);
+            setupSync(mountPoint, drive);
         } else {
             for(var i in partitions){
 
@@ -105,7 +105,7 @@ function mountDrive(drive) {
                         return;
                     }
 
-                    syncDrive(folderName, drive);
+                    setupSync(folderName, drive);
                     
                 });
             }
@@ -118,7 +118,7 @@ function mountDrive(drive) {
 }
 
 
-function syncDrive(mountPoint, drive){
+function setupSync(mountPoint, drive){
     //Drive is mounted, list the files in it
     fs.readdir(mountPoint, function(err, files) {
         if (err) {
@@ -138,106 +138,27 @@ function syncDrive(mountPoint, drive){
                 var syncData = JSON.parse(data);
                 console.log('Sync data: ', syncData);
 
-                var mailTo = syncData.email;
-                var syncPath = syncData.syncPath;
-                var deleteAfter = syncData.deleteAfter;
-
-                var owner = syncData.owner;
-                var group = syncData.group;
-                var permissions = syncData.permissions;
-
-                if(!mailTo || !syncPath || !owner || !group || !permissions){
-                    logError('Invalid sync data, aborting!');
-                    unmountDrive(mountPoint);
-                    return;
+                //Check if we have pre-sync script defined and run if so
+                if(syncData.scripts && syncData.scripts.beforeSync){
+                    console.log('Running pre-sync script...');
+                    exec(syncData.scripts.beforeSync, function(err, stdout, stderr){
+                        if(err){
+                            logError('error running pre-sync script: ' + err);
+                            unmountDrive(mountPoint);
+                            return;
+                        }
+                        console.log('Pre-sync script completed successfully');
+                        //Now sync the drive
+                        syncDrive(mountPoint, drive, syncData);
+                    }).stdout.on('data', function(data) {
+                        console.log(data); 
+                    });
                 }
 
-                //Send an email to the user to let them know we are syncing
-                let info = await transporter.sendMail({
-                    from: mailFrom,
-                    to: mailTo,
-                    subject: "File Sync Starting",
-                    text: "Your drive ("+drive.description+") is being synced to: "+syncPath,
-                  });
-
-                //Make sure our destination directory exists...
-                if (!fs.existsSync(syncPath)){
-                    fs.mkdirSync(syncPath);
+                else{
+                    syncDrive(mountPoint, drive, syncData);
                 }
 
-                //Set up an interval to email the user every half hour until we are done
-                if(!emailUpdateInterval){
-                    emailUpdateInterval = setInterval(function(){
-                        console.log('Sending email update to let user know the sync is still running...');
-                        transporter.sendMail({
-                            from: mailFrom,
-                            to: mailTo,
-                            subject: "File Sync Status",
-                            text: "Your drive ("+drive.description+") is still being actively synced to : "+syncPath+". Please be patient, this may take a while. If you do not receive an email for over 45 minutes and you have not received any errors or success notifications, please check on the sync manually.",
-                          });
-                    }, 1000 * 60 * 30);
-                }
-
-                //Now we have our data, set up the sync
-                var rsync = new Rsync()
-                    .flags('avz')
-		            .set('progress')
-                    .source(trailingSlashIt(mountPoint))
-                    .destination(trailingSlashIt(syncPath))
-                    .exclude('sync.json');
-
-                rsync.output(
-                    function(data){
-                        process.stdout.write(data);
-                    }, function(error){
-                        process.stdout.write(error);
-                    }
-                );
-                rsync.execute(async function(error, code, cmd) {
-                    clearInterval(emailUpdateInterval);
-                    if(error){
-                        logError('error syncing: ' + error, mailTo);
-                        unmountDrive(mountPoint, mailTo);
-                        return;
-                    }
-
-                    //Check if we should delete after
-                    if(deleteAfter){
-                        //Recursively delete all files and folders
-                        console.log('Deleting files after sync');
-                        fs.readdir(mountPoint, function(err, files) {
-                            if (err) {
-                                logError('error listing files: ' + err, mailTo);
-                                unmountDrive(mountPoint);
-                                return;
-                            }
-                            for(var i in files){
-                                var file = files[i];
-                                if(file == 'sync.json'){
-                                    continue;
-                                }
-                                console.log("deleting file: ", mountPoint+'/'+file);
-                                fs.rmSync(mountPoint+'/'+file, { recursive: true, force: true });
-                            }
-
-                            correctPermissions(syncPath, owner, group, permissions).then(function(){
-                                unmountDrive(mountPoint, mailTo).then(function(){
-                                    sendSuccessEmail(drive, mailTo);
-                                });
-                            });
-                            
-                        });
-                    }
-                    else{
-                        correctPermissions(syncPath, owner, group, permissions).then(function(){
-                            unmountDrive(mountPoint).then(function(){
-                                sendSuccessEmail(drive);
-                            });
-                        });
-                    }
-                    
-
-                });
                     
 
             });
@@ -246,6 +167,149 @@ function syncDrive(mountPoint, drive){
         else{
             logError('Drive attached, but no sync.json found, skipping partition');
             unmountDrive(mountPoint);
+        }
+    });
+
+}
+
+
+
+async function syncDrive(mountPoint, drive, syncData){
+    var mailTo = syncData.email;
+    var syncPath = syncData.syncPath;
+    var deleteAfter = syncData.deleteAfter;
+
+    var owner = syncData.owner;
+    var group = syncData.group;
+    var permissions = syncData.permissions;
+
+    if(!mailTo || !syncPath || !owner || !group || !permissions){
+        logError('Invalid sync data, aborting!');
+        unmountDrive(mountPoint);
+        return;
+    }
+
+    //Send an email to the user to let them know we are syncing
+    let info = await transporter.sendMail({
+        from: mailFrom,
+        to: mailTo,
+        subject: "File Sync Starting",
+        text: "Your drive ("+drive.description+") is being synced to: "+syncPath,
+        });
+
+    //Make sure our destination directory exists...
+    if (!fs.existsSync(syncPath)){
+        fs.mkdirSync(syncPath);
+    }
+
+    //Set up an interval to email the user every half hour until we are done
+    if(!emailUpdateInterval){
+        emailUpdateInterval = setInterval(function(){
+            console.log('Sending email update to let user know the sync is still running...');
+            transporter.sendMail({
+                from: mailFrom,
+                to: mailTo,
+                subject: "File Sync Status",
+                text: "Your drive ("+drive.description+") is still being actively synced to : "+syncPath+". Please be patient, this may take a while. If you do not receive an email for over 45 minutes and you have not received any errors or success notifications, please check on the sync manually.",
+                });
+        }, 1000 * 60 * 30);
+    }
+
+    //Now we have our data, set up the sync
+    var rsync = new Rsync()
+        .flags('avz')
+        .set('progress')
+        .source(trailingSlashIt(mountPoint))
+        .destination(trailingSlashIt(syncPath))
+        .exclude('sync.json');
+
+    rsync.output(
+        function(data){
+            process.stdout.write(data);
+        }, function(error){
+            process.stdout.write(error);
+        }
+    );
+    rsync.execute(async function(error, code, cmd) {
+        clearInterval(emailUpdateInterval);
+        if(error){
+            logError('error syncing: ' + error, mailTo);
+            unmountDrive(mountPoint, mailTo);
+            return;
+        }
+
+        //Check if we should delete after
+        if(deleteAfter){
+            //Recursively delete all files and folders
+            console.log('Deleting files after sync');
+            fs.readdir(mountPoint, function(err, files) {
+                if (err) {
+                    logError('error listing files: ' + err, mailTo);
+                    unmountDrive(mountPoint);
+                    return;
+                }
+                for(var i in files){
+                    var file = files[i];
+                    if(file == 'sync.json'){
+                        continue;
+                    }
+                    console.log("deleting file: ", mountPoint+'/'+file);
+                    fs.rmSync(mountPoint+'/'+file, { recursive: true, force: true });
+                }
+
+                correctPermissions(syncPath, owner, group, permissions).then(function(){
+                    runPostSyncScript(syncData).then(function(){
+                        unmountDrive(mountPoint, mailTo).then(function(){
+                            sendSuccessEmail(drive, mailTo);
+                        });
+                    })
+                    .catch(function(err){
+                        logError('error running post sync script: ' + err, mailTo);
+                        unmountDrive(mountPoint, mailTo);  
+                    });
+                    
+                });
+                
+            });
+        }
+        else{
+            correctPermissions(syncPath, owner, group, permissions).then(function(){
+                runPostSyncScript(syncData).then(function(){
+                    unmountDrive(mountPoint, mailTo).then(function(){
+                        sendSuccessEmail(drive, mailTo);
+                    });
+                })
+                .catch(function(err){
+                    logError('error running post sync script: ' + err, mailTo);
+                    unmountDrive(mountPoint, mailTo);  
+                });
+                
+            });
+        }
+        
+
+    });
+    
+}
+
+function runPostSyncScript(syncData){
+    //First, check to see if we have a post sync script defined and run if so
+    return new Promise(function(resolve, reject){
+        if(syncData.scripts && syncData.scripts.afterSync){
+            console.log('Running post-sync script...');
+            exec(syncData.scripts.afterSync, function(err, stdout, stderr){
+                if(err){
+                    reject(err);
+                }
+                console.log('Post-sync script completed successfully');
+                resolve(stdout);
+            }).stdout.on('data', function(data) {
+                console.log(data); 
+            });
+            
+        }
+        else{
+            resolve();
         }
     });
 

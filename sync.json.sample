@@ -4,5 +4,9 @@
 	"deleteAfter": false,
 	"owner": 1000,
 	"group": 1000,
-	"permissions": 755
+	"permissions": 755,
+	"scripts": {
+		"beforeSync": "",
+		"afterSync": ""
+	}
 }
