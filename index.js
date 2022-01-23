@@ -48,7 +48,7 @@ async function logError(error, mailTo, additionalScript){
     if(!mailTo){
         mailTo = defaultEmail;
     }
-    let info = await transporter.sendMail({
+    transporter.sendMail({
         from: mailFrom,
         to: mailTo,
         subject: "File Sync Error",
@@ -205,7 +205,7 @@ async function syncDrive(mountPoint, drive, syncData){
     }
 
     //Send an email to the user to let them know we are syncing
-    let info = await transporter.sendMail({
+    transporter.sendMail({
         from: mailFrom,
         to: mailTo,
         subject: "File Sync Starting",
@@ -359,7 +359,7 @@ async function sendSuccessEmail(drive, mailTo){
 
     try{
         //Then email the user
-        let info = await transporter.sendMail({
+        transporter.sendMail({
             from: mailFrom,
             to: mailTo,
             subject: "File Sync Complete",
