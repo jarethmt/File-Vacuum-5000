@@ -104,7 +104,7 @@ function mountDrive(drive) {
                 const folderName = '/mnt/file-vacuum-'+i;
                 try {
                     if (!fs.existsSync(folderName)) {
-                        fs.mkdirSync(folderName)
+                        fs.mkdirSync(folderName, {recursive: true})
                     }
                 } catch (err) {
                     logError(err)
@@ -214,7 +214,7 @@ async function syncDrive(mountPoint, drive, syncData){
 
     //Make sure our destination directory exists...
     if (!fs.existsSync(syncPath)){
-        fs.mkdirSync(syncPath);
+        fs.mkdirSync(syncPath, {recursive: true});
     }
 
     //Set up an interval to email the user every half hour until we are done
